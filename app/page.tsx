@@ -3,6 +3,8 @@
 import { Suspense, useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ConnectionStatus from "@/app/components/ConnectionStatus";
+import ChatGPTStatus from "@/app/components/ChatGPTStatus";
+import TestPrompt from "@/app/components/TestPrompt";
 import JsonEditor from "@/app/components/JsonEditor";
 import UploadResults from "@/app/components/UploadResults";
 import type { UploadResponse, UploadResult } from "@/lib/types/app";
@@ -16,6 +18,7 @@ function HomeContent() {
   const [uploadResponse, setUploadResponse] = useState<UploadResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isChatGPTConnected, setIsChatGPTConnected] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | undefined>();
   const [streamedResults, setStreamedResults] = useState<UploadResult[]>([]);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -30,6 +33,10 @@ function HomeContent() {
 
   const handleStatusChange = useCallback((connected: boolean) => {
     setIsConnected(connected);
+  }, []);
+
+  const handleChatGPTStatusChange = useCallback((connected: boolean) => {
+    setIsChatGPTConnected(connected);
   }, []);
 
   const handleJsonChange = useCallback(
@@ -177,6 +184,10 @@ function HomeContent() {
       )}
 
       <ConnectionStatus onStatusChange={handleStatusChange} />
+
+      <ChatGPTStatus onStatusChange={handleChatGPTStatusChange} />
+
+      {isChatGPTConnected && <TestPrompt />}
 
       {isConnected && (
         <div className="rounded-lg border border-gray-200 bg-white p-6">

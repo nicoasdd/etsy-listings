@@ -9,6 +9,8 @@ alwaysApply: true
 Auto-generated from all feature plans. Last updated: 2026-03-20
 
 ## Active Technologies
+- TypeScript 5.x with Next.js 16 (App Router) + Next.js, Tailwind CSS, native `fetch` API (no new dependencies) (002-chatgpt-codex-oauth)
+- File-based JSON for ChatGPT token persistence (`data/chatgpt-tokens.json`); separate from Etsy tokens (002-chatgpt-codex-oauth)
 
 - TypeScript 5.x with Next.js 15 (App Router) + Next.js, Tailwind CSS, native `fetch` API (001-etsy-listing-integration)
 
@@ -28,6 +30,7 @@ npm test && npm run lint
 TypeScript 5.x with Next.js 15 (App Router): Follow standard conventions
 
 ## Recent Changes
+- 002-chatgpt-codex-oauth: Added TypeScript 5.x with Next.js 16 (App Router) + Next.js, Tailwind CSS, native `fetch` API (no new dependencies)
 
 - 001-etsy-listing-integration: Added TypeScript 5.x with Next.js 15 (App Router) + Next.js, Tailwind CSS, native `fetch` API
 
