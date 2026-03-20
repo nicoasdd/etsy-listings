@@ -19,11 +19,11 @@
 
 **Purpose**: Project initialization, dependencies, and base configuration
 
-- [ ] T001 Initialize Next.js 15 project with TypeScript 5.x and App Router (`package.json`, `tsconfig.json`, `next.config.ts`)
-- [ ] T002 [P] Install and configure Tailwind CSS (`app/globals.css`, `tailwind.config.ts`, `postcss.config.js`)
-- [ ] T003 [P] Create root layout with Tailwind and base metadata (`app/layout.tsx`)
-- [ ] T004 [P] Create `.env.example` with `ETSY_API_KEY` and `ETSY_REDIRECT_URI` placeholders
-- [ ] T005 [P] Add `data/` to `.gitignore`
+- [x] T001 Initialize Next.js 15 project with TypeScript 5.x and App Router (`package.json`, `tsconfig.json`, `next.config.ts`)
+- [x] T002 [P] Install and configure Tailwind CSS (`app/globals.css`, `tailwind.config.ts`, `postcss.config.js`)
+- [x] T003 [P] Create root layout with Tailwind and base metadata (`app/layout.tsx`)
+- [x] T004 [P] Create `.env.example` with `ETSY_API_KEY` and `ETSY_REDIRECT_URI` placeholders
+- [x] T005 [P] Add `data/` to `.gitignore`
 
 **Checkpoint**: Project runs with `npm run dev` and renders an empty page.
 
@@ -35,13 +35,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Create TypeScript types for Etsy API request/response shapes in `lib/types/etsy.ts` (ListingPayload with all required/optional fields, Etsy token response, Etsy shop response)
-- [ ] T007 [P] Create TypeScript types for app-specific models in `lib/types/app.ts` (TokenStore, PendingOAuth, UploadResult, ConnectionStatus per data-model.md)
-- [ ] T008 Implement PKCE utilities in `lib/auth/pkce.ts` — `generateCodeVerifier()` (43-128 chars from `[A-Za-z0-9._~-]`) and `generateCodeChallenge(verifier)` (SHA256, base64url-encoded)
-- [ ] T009 Implement token storage helpers in `lib/auth/tokens.ts` — `readTokenStore()`, `writeTokenStore()`, `clearTokenStore()`, `isTokenExpired()`. File path: `data/tokens.json`. Auto-create `data/` directory if missing.
-- [ ] T010 [P] Implement Etsy OAuth URL builder and token exchange in `lib/auth/etsy-oauth.ts` — `buildAuthorizationUrl(state, codeChallenge)`, `exchangeCodeForTokens(code, codeVerifier)`, `refreshAccessToken(refreshToken)`, `fetchUserShop(userId, accessToken)`. All calls include `x-api-key` header.
-- [ ] T011 [P] Implement listing validation in `lib/listings/validate.ts` — `validateListings(parsed: unknown[])` returns per-listing structured errors. Validates 7 required fields, enum values for `who_made`/`when_made`, positive numbers for `quantity`/`price`/`taxonomy_id`.
-- [ ] T012 Implement Etsy listing API caller in `lib/listings/etsy-api.ts` — `createDraftListing(shopId, accessToken, apiKey, listing)` sends `POST /v3/application/shops/{shop_id}/listings` with `application/x-www-form-urlencoded` body. Converts array fields (tags, materials, styles) to URL-encoded format.
+- [x] T006 Create TypeScript types for Etsy API request/response shapes in `lib/types/etsy.ts` (ListingPayload with all required/optional fields, Etsy token response, Etsy shop response)
+- [x] T007 [P] Create TypeScript types for app-specific models in `lib/types/app.ts` (TokenStore, PendingOAuth, UploadResult, ConnectionStatus per data-model.md)
+- [x] T008 Implement PKCE utilities in `lib/auth/pkce.ts` — `generateCodeVerifier()` (43-128 chars from `[A-Za-z0-9._~-]`) and `generateCodeChallenge(verifier)` (SHA256, base64url-encoded)
+- [x] T009 Implement token storage helpers in `lib/auth/tokens.ts` — `readTokenStore()`, `writeTokenStore()`, `clearTokenStore()`, `isTokenExpired()`. File path: `data/tokens.json`. Auto-create `data/` directory if missing.
+- [x] T010 [P] Implement Etsy OAuth URL builder and token exchange in `lib/auth/etsy-oauth.ts` — `buildAuthorizationUrl(state, codeChallenge)`, `exchangeCodeForTokens(code, codeVerifier)`, `refreshAccessToken(refreshToken)`, `fetchUserShop(userId, accessToken)`. All calls include `x-api-key` header.
+- [x] T011 [P] Implement listing validation in `lib/listings/validate.ts` — `validateListings(parsed: unknown[])` returns per-listing structured errors. Validates 7 required fields, enum values for `who_made`/`when_made`, positive numbers for `quantity`/`price`/`taxonomy_id`.
+- [x] T012 Implement Etsy listing API caller in `lib/listings/etsy-api.ts` — `createDraftListing(shopId, accessToken, apiKey, listing)` sends `POST /v3/application/shops/{shop_id}/listings` with `application/x-www-form-urlencoded` body. Converts array fields (tags, materials, styles) to URL-encoded format.
 
 **Checkpoint**: Foundation ready — all library modules exist and export their functions. User story implementation can now begin.
 
@@ -55,12 +55,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement `GET /api/auth/connect` route in `app/api/auth/connect/route.ts` — Generate PKCE pair and state, store as `pending_oauth` in tokens.json, redirect to Etsy OAuth URL with all required query params (per contracts/api-auth.md). Return 500 if env vars missing.
-- [ ] T014 [US1] Implement `GET /api/auth/callback` route in `app/api/auth/callback/route.ts` — Validate state param against stored `pending_oauth.state`, exchange auth code for tokens via `exchangeCodeForTokens`, extract user_id from token prefix, fetch shop info via `fetchUserShop`, store tokens + shop info, clear `pending_oauth`, redirect to `/`. Return 400 for state mismatch, 502 for token exchange failure.
-- [ ] T015 [US1] Implement `POST /api/auth/refresh` route in `app/api/auth/refresh/route.ts` — Read stored refresh token, call `refreshAccessToken`, update tokens.json with new tokens and `expires_at`. Return 401 if not connected or refresh fails with `needs_reauth: true`.
-- [ ] T016 [US1] Implement `GET /api/auth/status` route in `app/api/auth/status/route.ts` — Read tokens.json, return `ConnectionStatus` shape. Return `connected: false` if no tokens. Include `needs_reauth: true` if refresh token is also expired.
-- [ ] T017 [P] [US1] Create `ConnectionStatus` component in `app/components/ConnectionStatus.tsx` — Polls `GET /api/auth/status` on mount. Shows "Connect to Etsy" button (links to `/api/auth/connect`) when not connected. Shows shop name and "Connected" indicator when authenticated. Shows re-auth prompt when `needs_reauth` is true.
-- [ ] T018 [US1] Wire `ConnectionStatus` into `app/page.tsx` as the main page with layout and heading.
+- [x] T013 [US1] Implement `GET /api/auth/connect` route in `app/api/auth/connect/route.ts` — Generate PKCE pair and state, store as `pending_oauth` in tokens.json, redirect to Etsy OAuth URL with all required query params (per contracts/api-auth.md). Return 500 if env vars missing.
+- [x] T014 [US1] Implement `GET /api/auth/callback` route in `app/api/auth/callback/route.ts` — Validate state param against stored `pending_oauth.state`, exchange auth code for tokens via `exchangeCodeForTokens`, extract user_id from token prefix, fetch shop info via `fetchUserShop`, store tokens + shop info, clear `pending_oauth`, redirect to `/`. Return 400 for state mismatch, 502 for token exchange failure.
+- [x] T015 [US1] Implement `POST /api/auth/refresh` route in `app/api/auth/refresh/route.ts` — Read stored refresh token, call `refreshAccessToken`, update tokens.json with new tokens and `expires_at`. Return 401 if not connected or refresh fails with `needs_reauth: true`.
+- [x] T016 [US1] Implement `GET /api/auth/status` route in `app/api/auth/status/route.ts` — Read tokens.json, return `ConnectionStatus` shape. Return `connected: false` if no tokens. Include `needs_reauth: true` if refresh token is also expired.
+- [x] T017 [P] [US1] Create `ConnectionStatus` component in `app/components/ConnectionStatus.tsx` — Polls `GET /api/auth/status` on mount. Shows "Connect to Etsy" button (links to `/api/auth/connect`) when not connected. Shows shop name and "Connected" indicator when authenticated. Shows re-auth prompt when `needs_reauth` is true.
+- [x] T018 [US1] Wire `ConnectionStatus` into `app/page.tsx` as the main page with layout and heading.
 
 **Checkpoint**: User Story 1 fully functional — user can connect to Etsy and see their shop name. US2/US3/US4 can begin in parallel from here.
 
@@ -74,10 +74,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Implement `POST /api/listings/upload` route in `app/api/listings/upload/route.ts` — Parse JSON body, normalize single object to array, validate with `validateListings`, check auth (refresh if expired), call `createDraftListing` sequentially for each listing, return per-listing `UploadResult[]` with summary. Return 400 for parse/validation errors, 401 if not authenticated.
-- [ ] T020 [P] [US2] Create `JsonEditor` component in `app/components/JsonEditor.tsx` — Large text area for pasting JSON. Client-side syntax validation on change/blur with `JSON.parse()`. Shows inline error with line/position info for malformed JSON. Checks parsed result is an object or array of objects.
-- [ ] T021 [P] [US2] Create `UploadResults` component in `app/components/UploadResults.tsx` — Displays per-listing results (success with listing link, error with message). Shows summary counts (total, succeeded, failed). Loading state with progress indicator during upload.
-- [ ] T022 [US2] Integrate `JsonEditor` and `UploadResults` into `app/page.tsx` — Add upload form below ConnectionStatus. "Upload Listing" button sends JSON to `POST /api/listings/upload`. Display results via `UploadResults`. Disable upload when not connected.
+- [x] T019 [US2] Implement `POST /api/listings/upload` route in `app/api/listings/upload/route.ts` — Parse JSON body, normalize single object to array, validate with `validateListings`, check auth (refresh if expired), call `createDraftListing` sequentially for each listing, return per-listing `UploadResult[]` with summary. Return 400 for parse/validation errors, 401 if not authenticated.
+- [x] T020 [P] [US2] Create `JsonEditor` component in `app/components/JsonEditor.tsx` — Large text area for pasting JSON. Client-side syntax validation on change/blur with `JSON.parse()`. Shows inline error with line/position info for malformed JSON. Checks parsed result is an object or array of objects.
+- [x] T021 [P] [US2] Create `UploadResults` component in `app/components/UploadResults.tsx` — Displays per-listing results (success with listing link, error with message). Shows summary counts (total, succeeded, failed). Loading state with progress indicator during upload.
+- [x] T022 [US2] Integrate `JsonEditor` and `UploadResults` into `app/page.tsx` — Add upload form below ConnectionStatus. "Upload Listing" button sends JSON to `POST /api/listings/upload`. Display results via `UploadResults`. Disable upload when not connected.
 
 **Checkpoint**: User Stories 1 AND 2 fully functional — user can connect and upload a single listing via JSON.
 
@@ -91,9 +91,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T023 [US3] Enhance `POST /api/listings/upload` route in `app/api/listings/upload/route.ts` to support streaming progress — Return per-listing results as they complete (or accumulate and return at end). Ensure a single JSON object is treated as a single listing (already handled by normalize step in T019).
-- [ ] T024 [US3] Update `UploadResults` component in `app/components/UploadResults.tsx` — Add progress bar/indicator showing "Uploading X of Y..." during batch processing. Show per-listing results as they arrive. Clearly distinguish succeeded vs failed items with color coding.
-- [ ] T025 [US3] Update `app/page.tsx` — Button text changes to "Upload Listings" when a JSON array is detected. Show batch summary after completion.
+- [x] T023 [US3] Enhance `POST /api/listings/upload` route in `app/api/listings/upload/route.ts` to support streaming progress — Return per-listing results as they complete (or accumulate and return at end). Ensure a single JSON object is treated as a single listing (already handled by normalize step in T019).
+- [x] T024 [US3] Update `UploadResults` component in `app/components/UploadResults.tsx` — Add progress bar/indicator showing "Uploading X of Y..." during batch processing. Show per-listing results as they arrive. Clearly distinguish succeeded vs failed items with color coding.
+- [x] T025 [US3] Update `app/page.tsx` — Button text changes to "Upload Listings" when a JSON array is detected. Show batch summary after completion.
 
 **Checkpoint**: User Stories 1, 2, AND 3 all work — single and batch uploads both supported.
 
@@ -107,8 +107,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T026 [US4] Implement `POST /api/auth/disconnect` route in `app/api/auth/disconnect/route.ts` — Call `clearTokenStore()` to delete `data/tokens.json` contents. Return `{ success: true }`.
-- [ ] T027 [US4] Enhance `ConnectionStatus` component in `app/components/ConnectionStatus.tsx` — Show token expiration status. Add "Disconnect" button that calls `POST /api/auth/disconnect` and resets UI to unauthenticated state. Show shop name prominently.
+- [x] T026 [US4] Implement `POST /api/auth/disconnect` route in `app/api/auth/disconnect/route.ts` — Call `clearTokenStore()` to delete `data/tokens.json` contents. Return `{ success: true }`.
+- [x] T027 [US4] Enhance `ConnectionStatus` component in `app/components/ConnectionStatus.tsx` — Show token expiration status. Add "Disconnect" button that calls `POST /api/auth/disconnect` and resets UI to unauthenticated state. Show shop name prominently.
 
 **Checkpoint**: All 4 user stories independently functional.
 
@@ -118,13 +118,13 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T028 [P] Create `.env.example` documentation with all required variables and inline comments
-- [ ] T029 [P] Add error boundary or global error handling in `app/page.tsx` for network failures
-- [ ] T030 Handle edge case: refresh token expired (90 days inactivity) — prompt full re-auth in `ConnectionStatus`
-- [ ] T031 Handle edge case: network loss mid-upload — report which listings succeeded/failed, allow retry of failed
-- [ ] T032 Handle edge case: extremely large batches (100+ listings) — add Etsy rate limit awareness with delay between requests
-- [ ] T033 Handle edge case: unrecognized fields in pasted JSON — warn user but still attempt upload
-- [ ] T034 Run quickstart.md validation — verify full flow (connect + upload) works per documented steps
+- [x] T028 [P] Create `.env.example` documentation with all required variables and inline comments
+- [x] T029 [P] Add error boundary or global error handling in `app/page.tsx` for network failures
+- [x] T030 Handle edge case: refresh token expired (90 days inactivity) — prompt full re-auth in `ConnectionStatus`
+- [x] T031 Handle edge case: network loss mid-upload — report which listings succeeded/failed, allow retry of failed
+- [x] T032 Handle edge case: extremely large batches (100+ listings) — add Etsy rate limit awareness with delay between requests
+- [x] T033 Handle edge case: unrecognized fields in pasted JSON — warn user but still attempt upload
+- [x] T034 Run quickstart.md validation — verify full flow (connect + upload) works per documented steps
 
 ---
 
