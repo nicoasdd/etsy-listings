@@ -30,3 +30,20 @@ export interface TestPromptResponse {
   model: string;
   error?: string;
 }
+
+export interface GeneratedListingFields {
+  title: string;
+  description: string;
+  tags: string[];
+  materials: string[];
+  styles: string[];
+  suggested_category: string;
+}
+
+export interface GenerateListingResponse {
+  success: boolean;
+  fields?: GeneratedListingFields;
+  model?: string;
+  error?: string;
+  needs_reauth?: boolean;
+}

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import ConnectionStatus from "@/app/components/ConnectionStatus";
 import ChatGPTStatus from "@/app/components/ChatGPTStatus";
 import TestPrompt from "@/app/components/TestPrompt";
+import ListingGenerator from "@/app/components/ListingGenerator";
 import JsonEditor from "@/app/components/JsonEditor";
 import UploadResults from "@/app/components/UploadResults";
 import type { UploadResponse, UploadResult } from "@/lib/types/app";
@@ -188,6 +189,10 @@ function HomeContent() {
       <ChatGPTStatus onStatusChange={handleChatGPTStatusChange} />
 
       {isChatGPTConnected && <TestPrompt />}
+
+      {isChatGPTConnected && (
+        <ListingGenerator isEtsyConnected={isConnected} />
+      )}
 
       {isConnected && (
         <div className="rounded-lg border border-gray-200 bg-white p-6">
