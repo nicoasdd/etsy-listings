@@ -51,7 +51,7 @@ export async function sendChatGPTPrompt(
   }
 }
 
-async function collectStreamedResponse(res: Response): Promise<string> {
+export async function collectStreamedResponse(res: Response): Promise<string> {
   const reader = res.body?.getReader();
   if (!reader) {
     const json = await res.json();
