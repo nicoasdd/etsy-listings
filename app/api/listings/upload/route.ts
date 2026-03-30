@@ -45,10 +45,12 @@ async function resolveAuth() {
     }
   }
 
-  const apiKey = process.env.ETSY_API_KEY;
-  if (!apiKey) {
-    return { error: "Missing ETSY_API_KEY environment variable", status: 500 } as const;
+  const keystring = process.env.ETSY_API_KEY;
+  const sharedSecret = process.env.ETSY_SHARED_SECRET;
+  if (!keystring || !sharedSecret) {
+    return { error: "Missing ETSY_API_KEY or ETSY_SHARED_SECRET environment variable", status: 500 } as const;
   }
+  const apiKey = `${keystring}:${sharedSecret}`;
 
   return { accessToken, apiKey, shopId: store.shop_id } as const;
 }

@@ -6,7 +6,7 @@ import {
 } from "@/lib/chatgpt/tokens";
 import { refreshAccessToken } from "@/lib/chatgpt/oauth";
 import { sendChatGPTImageGeneration } from "@/lib/chatgpt/generate";
-import type { GenerateListingResponse } from "@/lib/types/chatgpt";
+import type { GenerateDualListingResponse } from "@/lib/types/chatgpt";
 
 const ACCEPTED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     formData = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: "Invalid request. Expected multipart/form-data." } satisfies Partial<GenerateListingResponse>,
+      { error: "Invalid request. Expected multipart/form-data." } satisfies Partial<GenerateDualListingResponse>,
       { status: 400 }
     );
   }
@@ -29,14 +29,14 @@ export async function POST(request: NextRequest) {
   const imageFile = formData.get("image");
   if (!imageFile || !(imageFile instanceof File)) {
     return NextResponse.json(
-      { error: "No image provided. Please upload a product photo." } satisfies Partial<GenerateListingResponse>,
+      { error: "No image provided. Please upload a product photo." } satisfies Partial<GenerateDualListingResponse>,
       { status: 400 }
     );
   }
 
   if (!ACCEPTED_MIME_TYPES.has(imageFile.type)) {
     return NextResponse.json(
-      { error: `Unsupported image format: ${imageFile.type}. Accepted formats: JPEG, PNG, WebP.` } satisfies Partial<GenerateListingResponse>,
+      { error: `Unsupported image format: ${imageFile.type}. Accepted formats: JPEG, PNG, WebP.` } satisfies Partial<GenerateDualListingResponse>,
       { status: 400 }
     );
   }
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   if (imageFile.size > MAX_FILE_SIZE) {
     const sizeMB = (imageFile.size / (1024 * 1024)).toFixed(1);
     return NextResponse.json(
-      { error: `Image exceeds 20 MB size limit (yours: ${sizeMB} MB).` } satisfies Partial<GenerateListingResponse>,
+      { error: `Image exceeds 20 MB size limit (yours: ${sizeMB} MB).` } satisfies Partial<GenerateDualListingResponse>,
       { status: 400 }
     );
   }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   if (!store.access_token) {
     return NextResponse.json(
-      { error: "Not connected to ChatGPT. Please connect first.", needs_reauth: true } satisfies Partial<GenerateListingResponse>,
+      { error: "Not connected to ChatGPT. Please connect first.", needs_reauth: true } satisfies Partial<GenerateDualListingResponse>,
       { status: 401 }
     );
   }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   if (isChatGPTTokenExpired(store)) {
     if (!store.refresh_token) {
       return NextResponse.json(
-        { error: "ChatGPT session expired. Please reconnect.", needs_reauth: true } satisfies Partial<GenerateListingResponse>,
+        { error: "ChatGPT session expired. Please reconnect.", needs_reauth: true } satisfies Partial<GenerateDualListingResponse>,
         { status: 401 }
       );
     }
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       accessToken = refreshed.access_token;
     } catch {
       return NextResponse.json(
-        { error: "Token refresh failed. Please reconnect to ChatGPT.", needs_reauth: true } satisfies Partial<GenerateListingResponse>,
+        { error: "Token refresh failed. Please reconnect to ChatGPT.", needs_reauth: true } satisfies Partial<GenerateDualListingResponse>,
         { status: 401 }
       );
     }
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       descriptionStr
     );
 
-    const response: GenerateListingResponse = {
+    const response: GenerateDualListingResponse = {
       success: true,
       fields: result.fields,
       model: result.model,
@@ -111,14 +111,14 @@ export async function POST(request: NextRequest) {
 
     if (errorMessage === "TIMEOUT") {
       return NextResponse.json(
-        { error: "ChatGPT did not respond within the timeout period. Please try again." } satisfies Partial<GenerateListingResponse>,
+        { error: "ChatGPT did not respond within the timeout period. Please try again." } satisfies Partial<GenerateDualListingResponse>,
         { status: 504 }
       );
     }
 
     if (errorMessage.includes("(401)") || errorMessage.includes("(403)")) {
       return NextResponse.json(
-        { error: "ChatGPT authentication failed. Please reconnect.", needs_reauth: true } satisfies Partial<GenerateListingResponse>,
+        { error: "ChatGPT authentication failed. Please reconnect.", needs_reauth: true } satisfies Partial<GenerateDualListingResponse>,
         { status: 401 }
       );
     }

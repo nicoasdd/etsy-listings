@@ -93,7 +93,7 @@ export default function JsonEditor({ onJsonChange }: JsonEditorProps) {
         id="json-editor"
         value={value}
         onChange={handleChange}
-        placeholder={`Paste a listing JSON object or array...\n\n{\n  "quantity": 1,\n  "title": "Your Listing Title",\n  "description": "Product description",\n  "price": 19.99,\n  "who_made": "i_did",\n  "when_made": "2020_2023",\n  "taxonomy_id": 1\n}`}
+        placeholder={`Paste a listing JSON object or array...\n\n{\n  "quantity": 1,\n  "title": "Your Listing Title",\n  "description": "Product description",\n  "price": 19.99,\n  "who_made": "i_did",\n  "when_made": "2020_2026",\n  "taxonomy_id": 1\n}`}
         rows={16}
         spellCheck={false}
         className={`mt-1.5 block w-full rounded-lg border bg-white px-3 py-2 font-mono text-sm transition-colors ${

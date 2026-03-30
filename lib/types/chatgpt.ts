@@ -47,3 +47,16 @@ export interface GenerateListingResponse {
   error?: string;
   needs_reauth?: boolean;
 }
+
+export interface DualListingFields {
+  etsy: GeneratedListingFields;
+  cults3d: import("@/lib/types/cults3d").GeneratedCults3DFields;
+}
+
+export interface GenerateDualListingResponse {
+  success: boolean;
+  fields?: DualListingFields;
+  model?: string;
+  error?: string;
+  needs_reauth?: boolean;
+}

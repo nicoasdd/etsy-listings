@@ -4,6 +4,7 @@ import { Suspense, useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ConnectionStatus from "@/app/components/ConnectionStatus";
 import ChatGPTStatus from "@/app/components/ChatGPTStatus";
+import Cults3DStatus from "@/app/components/Cults3DStatus";
 import TestPrompt from "@/app/components/TestPrompt";
 import ListingGenerator from "@/app/components/ListingGenerator";
 import JsonEditor from "@/app/components/JsonEditor";
@@ -20,6 +21,7 @@ function HomeContent() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isChatGPTConnected, setIsChatGPTConnected] = useState(false);
+  const [isCults3DConnected, setIsCults3DConnected] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | undefined>();
   const [streamedResults, setStreamedResults] = useState<UploadResult[]>([]);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -38,6 +40,10 @@ function HomeContent() {
 
   const handleChatGPTStatusChange = useCallback((connected: boolean) => {
     setIsChatGPTConnected(connected);
+  }, []);
+
+  const handleCults3DStatusChange = useCallback((connected: boolean) => {
+    setIsCults3DConnected(connected);
   }, []);
 
   const handleJsonChange = useCallback(
@@ -188,10 +194,15 @@ function HomeContent() {
 
       <ChatGPTStatus onStatusChange={handleChatGPTStatusChange} />
 
+      <Cults3DStatus onStatusChange={handleCults3DStatusChange} />
+
       {isChatGPTConnected && <TestPrompt />}
 
       {isChatGPTConnected && (
-        <ListingGenerator isEtsyConnected={isConnected} />
+        <ListingGenerator
+          isEtsyConnected={isConnected}
+          isCults3DConnected={isCults3DConnected}
+        />
       )}
 
       {isConnected && (

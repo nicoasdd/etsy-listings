@@ -55,9 +55,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: "Failed to exchange authorization code", details: message },
-      { status: 502 }
+    return NextResponse.redirect(
+      new URL(`/?error=${encodeURIComponent(message)}`, request.url)
     );
   }
 }
