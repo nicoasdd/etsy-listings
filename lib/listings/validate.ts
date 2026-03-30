@@ -16,11 +16,11 @@ const WHO_MADE_VALUES: WhoMade[] = ["i_did", "someone_else", "collective"];
 
 const WHEN_MADE_VALUES: WhenMade[] = [
   "made_to_order",
-  "2020_2023",
+  "2020_2026",
   "2010_2019",
-  "2004_2009",
-  "before_2004",
-  "2000_2003",
+  "2007_2009",
+  "before_2007",
+  "2000_2006",
   "1990s",
   "1980s",
   "1970s",

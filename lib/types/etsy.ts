@@ -32,17 +32,18 @@ export interface ListingPayload {
   should_auto_renew?: boolean;
   is_taxable?: boolean;
   type?: "physical" | "download";
+  readiness_state_id?: number;
 }
 
 export type WhoMade = "i_did" | "someone_else" | "collective";
 
 export type WhenMade =
   | "made_to_order"
-  | "2020_2023"
+  | "2020_2026"
   | "2010_2019"
-  | "2004_2009"
-  | "before_2004"
-  | "2000_2003"
+  | "2007_2009"
+  | "before_2007"
+  | "2000_2006"
   | "1990s"
   | "1980s"
   | "1970s"
@@ -80,6 +81,14 @@ export interface EtsyListingResponse {
   title: string;
   state: string;
   url: string;
+}
+
+export interface ReadinessStateDefinition {
+  readiness_state_id: number;
+  readiness_state: "ready_to_ship" | "made_to_order";
+  min_processing_time: number;
+  max_processing_time: number;
+  processing_time_unit: "days" | "weeks";
 }
 
 export interface EtsyErrorResponse {

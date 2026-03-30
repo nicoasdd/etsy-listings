@@ -1,25 +1,36 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import type {
   GeneratedListingFields,
   DualListingFields,
   GenerateDualListingResponse,
 } from "@/lib/types/chatgpt";
 import type { GeneratedCults3DFields, Cults3DCreateInput, Cults3DCreateResult } from "@/lib/types/cults3d";
-import type { WhoMade, WhenMade } from "@/lib/types/etsy";
+import type { WhoMade, WhenMade, ReadinessStateDefinition } from "@/lib/types/etsy";
 import Cults3DListingForm from "./Cults3DListingForm";
 import type { Cults3DListingFormHandle } from "./Cults3DListingForm";
 
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+interface TaxonomyOption {
+  id: number;
+  name: string;
+  full_path: string;
+}
+
+interface ShippingProfileOption {
+  shipping_profile_id: number;
+  title: string;
+}
 const WHEN_MADE_OPTIONS: WhenMade[] = [
   "made_to_order",
-  "2020_2023",
+  "2020_2026",
   "2010_2019",
-  "2004_2009",
-  "2000_2003",
-  "before_2004",
+  "2007_2009",
+  "2000_2006",
+  "before_2007",
   "1990s",
   "1980s",
   "1970s",
@@ -40,7 +51,11 @@ interface Props {
   isCults3DConnected: boolean;
 }
 
+type ListingType = "physical" | "download";
+
 interface UserFields {
+  type: ListingType;
+  readiness_state_id: string;
   price: string;
   quantity: string;
   who_made: WhoMade | "";
@@ -50,6 +65,8 @@ interface UserFields {
 }
 
 const emptyUserFields: UserFields = {
+  type: "physical",
+  readiness_state_id: "",
   price: "",
   quantity: "",
   who_made: "",
@@ -100,6 +117,63 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
   const [isDualSubmitting, setIsDualSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const taxonomyRef = useRef<HTMLDivElement>(null);
+
+  const [taxonomies, setTaxonomies] = useState<TaxonomyOption[]>([]);
+  const [shippingProfiles, setShippingProfiles] = useState<ShippingProfileOption[]>([]);
+  const [readinessStates, setReadinessStates] = useState<ReadinessStateDefinition[]>([]);
+  const [isCreatingReadiness, setIsCreatingReadiness] = useState(false);
+  const [taxonomySearch, setTaxonomySearch] = useState("");
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isEtsyConnected) return;
+
+    fetch("/api/etsy/taxonomies")
+      .then((r) => r.json())
+      .then((data) => setTaxonomies(data.taxonomies ?? []))
+      .catch(() => {});
+
+    fetch("/api/etsy/shipping-profiles")
+      .then((r) => r.json())
+      .then((data) => setShippingProfiles(data.profiles ?? []))
+      .catch(() => {});
+
+    fetch("/api/etsy/readiness-states")
+      .then((r) => r.json())
+      .then((data) => {
+        const defs: ReadinessStateDefinition[] = data.definitions ?? [];
+        setReadinessStates(defs);
+        if (defs.length > 0 && !userFields.readiness_state_id) {
+          setUserFields((f) => ({ ...f, readiness_state_id: String(defs[0].readiness_state_id) }));
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEtsyConnected]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (taxonomyRef.current && !taxonomyRef.current.contains(e.target as Node)) {
+        setTaxonomyOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedTaxonomy = useMemo(
+    () => taxonomies.find((t) => String(t.id) === userFields.taxonomy_id),
+    [taxonomies, userFields.taxonomy_id],
+  );
+
+  const filteredTaxonomies = useMemo(() => {
+    if (!taxonomySearch.trim()) return taxonomies.slice(0, 50);
+    const q = taxonomySearch.toLowerCase();
+    return taxonomies
+      .filter((t) => t.full_path.toLowerCase().includes(q))
+      .slice(0, 50);
+  }, [taxonomies, taxonomySearch]);
 
   const validateFile = useCallback((file: File): string | null => {
     if (!ACCEPTED_TYPES.has(file.type)) {
@@ -289,6 +363,32 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
     setNewCults3DTagInput("");
   }, [editedCults3DFields, newCults3DTagInput, updateCults3DField]);
 
+  const handleCreateReadinessState = useCallback(async (readinessState: "made_to_order" | "ready_to_ship") => {
+    setIsCreatingReadiness(true);
+    try {
+      const res = await fetch("/api/etsy/readiness-states", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          readiness_state: readinessState,
+          min_processing_time: readinessState === "ready_to_ship" ? 1 : 3,
+          max_processing_time: readinessState === "ready_to_ship" ? 3 : 5,
+          processing_time_unit: "days",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.definition) {
+        const newDef: ReadinessStateDefinition = data.definition;
+        setReadinessStates((prev) => [...prev, newDef]);
+        setUserFields((f) => ({ ...f, readiness_state_id: String(newDef.readiness_state_id) }));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsCreatingReadiness(false);
+    }
+  }, []);
+
   const handleSubmitToCults3D = useCallback(async (input: Cults3DCreateInput) => {
     setIsCults3DSubmitting(true);
     setCults3DSubmitResult(null);
@@ -329,13 +429,17 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
       payload.styles = editedEtsyFields.styles;
     }
 
+    payload.type = userFields.type;
+    if (userFields.type === "physical" && userFields.readiness_state_id) {
+      payload.readiness_state_id = parseInt(userFields.readiness_state_id, 10);
+    }
     if (userFields.price) payload.price = parseFloat(userFields.price);
     if (userFields.quantity) payload.quantity = parseInt(userFields.quantity, 10);
     if (userFields.who_made) payload.who_made = userFields.who_made;
     if (userFields.when_made) payload.when_made = userFields.when_made;
     if (userFields.taxonomy_id)
       payload.taxonomy_id = parseInt(userFields.taxonomy_id, 10);
-    if (userFields.shipping_profile_id)
+    if (userFields.type === "physical" && userFields.shipping_profile_id)
       payload.shipping_profile_id = parseInt(
         userFields.shipping_profile_id,
         10
@@ -364,7 +468,11 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
       !userFields.taxonomy_id ||
       parseInt(userFields.taxonomy_id, 10) <= 0
     )
-      errors.taxonomy_id = "Taxonomy ID is required";
+      errors.taxonomy_id = "Category is required";
+    if (userFields.type === "physical" && !userFields.readiness_state_id)
+      errors.readiness_state_id = "Readiness state is required for physical items";
+    if (userFields.type === "physical" && !userFields.shipping_profile_id)
+      errors.shipping_profile_id = "Shipping profile is required for physical items";
     return errors;
   }, [editedEtsyFields, userFields]);
 
@@ -862,6 +970,44 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-700">
+                      Listing Type
+                    </label>
+                    <div className="mt-1 flex rounded-lg border border-gray-300 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setUserFields((f) => ({ ...f, type: "physical" }))
+                        }
+                        className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                          userFields.type === "physical"
+                            ? "bg-orange-500 text-white"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        Physical
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setUserFields((f) => ({
+                            ...f,
+                            type: "download",
+                            shipping_profile_id: "",
+                          }))
+                        }
+                        className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                          userFields.type === "download"
+                            ? "bg-orange-500 text-white"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        Digital Download
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-gray-700">
                       Price ($)
@@ -977,27 +1123,134 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
                     )}
                   </div>
 
-                  <div>
+                  {userFields.type === "physical" && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Processing Profile
+                      </label>
+                      {readinessStates.length > 0 ? (
+                        <select
+                          value={userFields.readiness_state_id}
+                          onChange={(e) =>
+                            setUserFields((f) => ({
+                              ...f,
+                              readiness_state_id: e.target.value,
+                            }))
+                          }
+                          className={`mt-1 w-full rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+                            validationErrors.readiness_state_id
+                              ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                              : "border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                          }`}
+                        >
+                          <option value="">Select...</option>
+                          {readinessStates.map((rs) => (
+                            <option key={rs.readiness_state_id} value={String(rs.readiness_state_id)}>
+                              {rs.readiness_state.replace(/_/g, " ")} ({rs.min_processing_time}-{rs.max_processing_time} {rs.processing_time_unit})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="mt-1 space-y-2">
+                          <p className="text-xs text-gray-500">
+                            No processing profiles found. Create one:
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleCreateReadinessState("made_to_order")}
+                              disabled={isCreatingReadiness}
+                              className="flex-1 rounded-lg border border-orange-400 px-2 py-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+                            >
+                              {isCreatingReadiness ? "Creating..." : "Made to order (3-5 days)"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCreateReadinessState("ready_to_ship")}
+                              disabled={isCreatingReadiness}
+                              className="flex-1 rounded-lg border border-orange-400 px-2 py-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+                            >
+                              {isCreatingReadiness ? "Creating..." : "Ready to ship (1-3 days)"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {validationErrors.readiness_state_id && (
+                        <p className="mt-0.5 text-xs text-red-600">
+                          {validationErrors.readiness_state_id}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="col-span-2" ref={taxonomyRef}>
                     <label className="block text-xs font-medium text-gray-700">
-                      Taxonomy ID
+                      Category (Taxonomy)
                     </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={userFields.taxonomy_id}
-                      onChange={(e) =>
-                        setUserFields((f) => ({
-                          ...f,
-                          taxonomy_id: e.target.value,
-                        }))
-                      }
-                      className={`mt-1 w-full rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${
-                        validationErrors.taxonomy_id
-                          ? "border-red-300 focus:border-red-500 focus:ring-red-500"
-                          : "border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                      }`}
-                    />
+                    {selectedTaxonomy ? (
+                      <div
+                        className={`mt-1 flex items-center justify-between rounded-lg border px-3 py-1.5 ${
+                          validationErrors.taxonomy_id
+                            ? "border-red-300"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        <span className="truncate text-sm text-gray-900">
+                          {selectedTaxonomy.full_path}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setUserFields((f) => ({ ...f, taxonomy_id: "" }))
+                          }
+                          className="ml-2 shrink-0 text-gray-400 hover:text-gray-600"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={taxonomySearch}
+                          onChange={(e) => {
+                            setTaxonomySearch(e.target.value);
+                            setTaxonomyOpen(true);
+                          }}
+                          onFocus={() => setTaxonomyOpen(true)}
+                          placeholder={
+                            taxonomies.length
+                              ? "Search categories..."
+                              : "Loading categories..."
+                          }
+                          className={`mt-1 w-full rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+                            validationErrors.taxonomy_id
+                              ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                              : "border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                          }`}
+                        />
+                        {taxonomyOpen && filteredTaxonomies.length > 0 && (
+                          <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                            {filteredTaxonomies.map((t) => (
+                              <li
+                                key={t.id}
+                                onClick={() => {
+                                  setUserFields((f) => ({
+                                    ...f,
+                                    taxonomy_id: String(t.id),
+                                  }));
+                                  setTaxonomySearch("");
+                                  setTaxonomyOpen(false);
+                                }}
+                                className="cursor-pointer truncate px-3 py-1.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-800"
+                              >
+                                {t.full_path}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     {validationErrors.taxonomy_id && (
                       <p className="mt-0.5 text-xs text-red-600">
                         {validationErrors.taxonomy_id}
@@ -1005,25 +1258,46 @@ export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700">
-                      Shipping Profile ID{" "}
-                      <span className="text-gray-400">(optional)</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={userFields.shipping_profile_id}
-                      onChange={(e) =>
-                        setUserFields((f) => ({
-                          ...f,
-                          shipping_profile_id: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    />
-                  </div>
+                  {userFields.type === "physical" && (
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-700">
+                        Shipping Profile
+                      </label>
+                      <select
+                        value={userFields.shipping_profile_id}
+                        onChange={(e) =>
+                          setUserFields((f) => ({
+                            ...f,
+                            shipping_profile_id: e.target.value,
+                          }))
+                        }
+                        className={`mt-1 w-full rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+                          validationErrors.shipping_profile_id
+                            ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                            : "border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                        }`}
+                      >
+                        <option value="">
+                          {shippingProfiles.length
+                            ? "Select a shipping profile..."
+                            : "Loading profiles..."}
+                        </option>
+                        {shippingProfiles.map((p) => (
+                          <option
+                            key={p.shipping_profile_id}
+                            value={String(p.shipping_profile_id)}
+                          >
+                            {p.title}
+                          </option>
+                        ))}
+                      </select>
+                      {validationErrors.shipping_profile_id && (
+                        <p className="mt-0.5 text-xs text-red-600">
+                          {validationErrors.shipping_profile_id}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <button
