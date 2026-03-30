@@ -3,9 +3,13 @@
 import { useState, useRef, useCallback } from "react";
 import type {
   GeneratedListingFields,
-  GenerateListingResponse,
+  DualListingFields,
+  GenerateDualListingResponse,
 } from "@/lib/types/chatgpt";
+import type { GeneratedCults3DFields, Cults3DCreateInput, Cults3DCreateResult } from "@/lib/types/cults3d";
 import type { WhoMade, WhenMade } from "@/lib/types/etsy";
+import Cults3DListingForm from "./Cults3DListingForm";
+import type { Cults3DListingFormHandle } from "./Cults3DListingForm";
 
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -33,6 +37,7 @@ const WHEN_MADE_OPTIONS: WhenMade[] = [
 
 interface Props {
   isEtsyConnected: boolean;
+  isCults3DConnected: boolean;
 }
 
 interface UserFields {
@@ -53,15 +58,17 @@ const emptyUserFields: UserFields = {
   shipping_profile_id: "",
 };
 
-export default function ListingGenerator({ isEtsyConnected }: Props) {
+export default function ListingGenerator({ isEtsyConnected, isCults3DConnected }: Props) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedFields, setGeneratedFields] =
+    useState<DualListingFields | null>(null);
+  const [editedEtsyFields, setEditedEtsyFields] =
     useState<GeneratedListingFields | null>(null);
-  const [editedFields, setEditedFields] =
-    useState<GeneratedListingFields | null>(null);
+  const [editedCults3DFields, setEditedCults3DFields] =
+    useState<GeneratedCults3DFields | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [needsReauth, setNeedsReauth] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -82,6 +89,15 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
   const [newTagInput, setNewTagInput] = useState("");
   const [newMaterialInput, setNewMaterialInput] = useState("");
   const [showEtsyDetails, setShowEtsyDetails] = useState(false);
+  const [showCults3DFields, setShowCults3DFields] = useState(false);
+  const [newCults3DTagInput, setNewCults3DTagInput] = useState("");
+  const [isCults3DSubmitting, setIsCults3DSubmitting] = useState(false);
+  const [cults3DSubmitResult, setCults3DSubmitResult] = useState<Cults3DCreateResult | null>(null);
+  const [dualSubmitResults, setDualSubmitResults] = useState<{
+    etsy?: { success: boolean; message: string; url?: string };
+    cults3d?: Cults3DCreateResult;
+  } | null>(null);
+  const [isDualSubmitting, setIsDualSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -149,7 +165,8 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
     setGenerationError(null);
     setNeedsReauth(false);
     setGeneratedFields(null);
-    setEditedFields(null);
+    setEditedEtsyFields(null);
+    setEditedCults3DFields(null);
     setSubmitResult(null);
     setSubmitError(null);
 
@@ -165,7 +182,7 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
         body: formData,
       });
 
-      const data: GenerateListingResponse = await res.json();
+      const data: GenerateDualListingResponse = await res.json();
 
       if (!res.ok || !data.success) {
         if (data.needs_reauth) setNeedsReauth(true);
@@ -177,7 +194,8 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
 
       if (data.fields) {
         setGeneratedFields(data.fields);
-        setEditedFields({ ...data.fields });
+        setEditedEtsyFields({ ...data.fields.etsy });
+        setEditedCults3DFields({ ...data.fields.cults3d });
       }
     } catch {
       setGenerationError(
@@ -188,75 +206,127 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
     }
   }, [imageFile, description]);
 
-  const updateField = useCallback(
+  const updateEtsyField = useCallback(
     <K extends keyof GeneratedListingFields>(
       key: K,
       value: GeneratedListingFields[K]
     ) => {
-      setEditedFields((prev) => (prev ? { ...prev, [key]: value } : prev));
+      setEditedEtsyFields((prev) => (prev ? { ...prev, [key]: value } : prev));
+    },
+    []
+  );
+
+  const updateCults3DField = useCallback(
+    <K extends keyof GeneratedCults3DFields>(
+      key: K,
+      value: GeneratedCults3DFields[K]
+    ) => {
+      setEditedCults3DFields((prev) => (prev ? { ...prev, [key]: value } : prev));
     },
     []
   );
 
   const removeTag = useCallback(
     (index: number) => {
-      if (!editedFields) return;
-      const newTags = editedFields.tags.filter((_, i) => i !== index);
-      updateField("tags", newTags);
+      if (!editedEtsyFields) return;
+      const newTags = editedEtsyFields.tags.filter((_, i) => i !== index);
+      updateEtsyField("tags", newTags);
     },
-    [editedFields, updateField]
+    [editedEtsyFields, updateEtsyField]
   );
 
   const addTag = useCallback(() => {
-    if (!editedFields || !newTagInput.trim()) return;
-    if (editedFields.tags.length >= 13) return;
+    if (!editedEtsyFields || !newTagInput.trim()) return;
+    if (editedEtsyFields.tags.length >= 13) return;
     const tag = newTagInput.trim().slice(0, 20);
-    updateField("tags", [...editedFields.tags, tag]);
+    updateEtsyField("tags", [...editedEtsyFields.tags, tag]);
     setNewTagInput("");
-  }, [editedFields, newTagInput, updateField]);
+  }, [editedEtsyFields, newTagInput, updateEtsyField]);
 
   const removeMaterial = useCallback(
     (index: number) => {
-      if (!editedFields) return;
-      const newMaterials = editedFields.materials.filter(
+      if (!editedEtsyFields) return;
+      const newMaterials = editedEtsyFields.materials.filter(
         (_, i) => i !== index
       );
-      updateField("materials", newMaterials);
+      updateEtsyField("materials", newMaterials);
     },
-    [editedFields, updateField]
+    [editedEtsyFields, updateEtsyField]
   );
 
   const addMaterial = useCallback(() => {
-    if (!editedFields || !newMaterialInput.trim()) return;
-    updateField("materials", [
-      ...editedFields.materials,
+    if (!editedEtsyFields || !newMaterialInput.trim()) return;
+    updateEtsyField("materials", [
+      ...editedEtsyFields.materials,
       newMaterialInput.trim(),
     ]);
     setNewMaterialInput("");
-  }, [editedFields, newMaterialInput, updateField]);
+  }, [editedEtsyFields, newMaterialInput, updateEtsyField]);
 
   const updateStyle = useCallback(
     (index: number, value: string) => {
-      if (!editedFields) return;
-      const newStyles = [...editedFields.styles];
+      if (!editedEtsyFields) return;
+      const newStyles = [...editedEtsyFields.styles];
       newStyles[index] = value;
-      updateField("styles", newStyles);
+      updateEtsyField("styles", newStyles);
     },
-    [editedFields, updateField]
+    [editedEtsyFields, updateEtsyField]
   );
 
+  const removeCults3DTag = useCallback(
+    (index: number) => {
+      if (!editedCults3DFields) return;
+      const newTags = editedCults3DFields.tags.filter((_, i) => i !== index);
+      updateCults3DField("tags", newTags);
+    },
+    [editedCults3DFields, updateCults3DField]
+  );
+
+  const addCults3DTag = useCallback(() => {
+    if (!editedCults3DFields || !newCults3DTagInput.trim()) return;
+    if (editedCults3DFields.tags.length >= 15) return;
+    updateCults3DField("tags", [...editedCults3DFields.tags, newCults3DTagInput.trim()]);
+    setNewCults3DTagInput("");
+  }, [editedCults3DFields, newCults3DTagInput, updateCults3DField]);
+
+  const handleSubmitToCults3D = useCallback(async (input: Cults3DCreateInput) => {
+    setIsCults3DSubmitting(true);
+    setCults3DSubmitResult(null);
+
+    try {
+      const res = await fetch("/api/cults3d/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+
+      const data: Cults3DCreateResult = await res.json();
+      setCults3DSubmitResult(data);
+      setDualSubmitResults((prev) => prev ? { ...prev, cults3d: data } : null);
+    } catch {
+      const errorResult: Cults3DCreateResult = {
+        success: false,
+        error: "Network error. Please check your connection and try again.",
+      };
+      setCults3DSubmitResult(errorResult);
+      setDualSubmitResults((prev) => prev ? { ...prev, cults3d: errorResult } : null);
+    } finally {
+      setIsCults3DSubmitting(false);
+    }
+  }, []);
+
   const buildPayload = useCallback(() => {
-    if (!editedFields) return null;
+    if (!editedEtsyFields) return null;
 
     const payload: Record<string, unknown> = {
-      title: editedFields.title,
-      description: editedFields.description,
-      tags: editedFields.tags,
-      materials: editedFields.materials,
+      title: editedEtsyFields.title,
+      description: editedEtsyFields.description,
+      tags: editedEtsyFields.tags,
+      materials: editedEtsyFields.materials,
     };
 
-    if (editedFields.styles.length > 0) {
-      payload.styles = editedFields.styles;
+    if (editedEtsyFields.styles.length > 0) {
+      payload.styles = editedEtsyFields.styles;
     }
 
     if (userFields.price) payload.price = parseFloat(userFields.price);
@@ -272,14 +342,14 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
       );
 
     return payload;
-  }, [editedFields, userFields]);
+  }, [editedEtsyFields, userFields]);
 
   const validateForSubmission = useCallback((): Record<string, string> => {
     const errors: Record<string, string> = {};
-    if (!editedFields?.title?.trim()) errors.title = "Title is required";
-    if (!editedFields?.description?.trim())
+    if (!editedEtsyFields?.title?.trim()) errors.title = "Title is required";
+    if (!editedEtsyFields?.description?.trim())
       errors.description = "Description is required";
-    if (!editedFields?.tags?.length) errors.tags = "At least one tag required";
+    if (!editedEtsyFields?.tags?.length) errors.tags = "At least one tag required";
     if (!userFields.price || parseFloat(userFields.price) <= 0)
       errors.price = "Price must be greater than 0";
     if (
@@ -296,7 +366,7 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
     )
       errors.taxonomy_id = "Taxonomy ID is required";
     return errors;
-  }, [editedFields, userFields]);
+  }, [editedEtsyFields, userFields]);
 
   const handleSubmitToEtsy = useCallback(async () => {
     const errors = validateForSubmission();
@@ -363,7 +433,55 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
     }
   }, [buildPayload]);
 
-  const currentFields = editedFields;
+  const cults3DFormRef = useRef<Cults3DListingFormHandle>(null);
+
+  const handleCreateOnBoth = useCallback(async () => {
+    setIsDualSubmitting(true);
+    setDualSubmitResults(null);
+
+    const etsyPromise = (async () => {
+      const errors = validateForSubmission();
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors);
+        return { success: false, message: "Etsy validation failed. Check required fields." };
+      }
+      setValidationErrors({});
+
+      const payload = buildPayload();
+      const res = await fetch("/api/listings/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.error || "Failed to create listing on Etsy." };
+      }
+      const result = data.results?.[0];
+      if (result?.status === "success") {
+        return { success: true, message: "Draft listing created on Etsy!", url: result.listing_url || result.url };
+      }
+      if (result?.status === "error") {
+        return { success: false, message: result.error || "Failed to create listing on Etsy." };
+      }
+      return { success: true, message: "Listing submitted to Etsy!" };
+    })().catch(() => ({
+      success: false,
+      message: "Network error creating Etsy listing.",
+    }));
+
+    // Trigger Cults3D form submission via ref
+    cults3DFormRef.current?.triggerSubmit();
+
+    const etsyResult = await etsyPromise;
+    setDualSubmitResults({
+      etsy: etsyResult,
+    });
+
+    setIsDualSubmitting(false);
+  }, [validateForSubmission, buildPayload]);
+
+  const currentFields = editedEtsyFields;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
@@ -514,8 +632,8 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
         {/* Generated/Edited fields form */}
         {currentFields && (
           <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Generated Listing Fields
+            <h3 className="text-sm font-semibold text-orange-800">
+              Etsy Listing Fields
             </h3>
 
             {/* Title */}
@@ -533,7 +651,7 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
               <input
                 type="text"
                 value={currentFields.title}
-                onChange={(e) => updateField("title", e.target.value)}
+                onChange={(e) => updateEtsyField("title", e.target.value)}
                 className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
                   currentFields.title.length > 140
                     ? "border-red-300 focus:border-red-500 focus:ring-red-500"
@@ -554,7 +672,7 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
               </label>
               <textarea
                 value={currentFields.description}
-                onChange={(e) => updateField("description", e.target.value)}
+                onChange={(e) => updateEtsyField("description", e.target.value)}
                 rows={6}
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
@@ -937,6 +1055,183 @@ export default function ListingGenerator({ isEtsyConnected }: Props) {
                         className="mt-1 inline-block text-sm font-medium text-green-600 hover:text-green-800"
                       >
                         View on Etsy &rarr;
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cults3D Listing Fields */}
+        {editedCults3DFields && (
+          <div className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-blue-800">
+                Cults3D Listing Fields
+              </h3>
+              <button
+                onClick={() => setShowCults3DFields((v) => !v)}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800"
+              >
+                {showCults3DFields ? "Collapse" : "Expand"}
+              </button>
+            </div>
+
+            {showCults3DFields && (
+              <div className="space-y-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editedCults3DFields.name}
+                    onChange={(e) => updateCults3DField("name", e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">
+                    Description
+                  </label>
+                  <textarea
+                    value={editedCults3DFields.description}
+                    onChange={(e) => updateCults3DField("description", e.target.value)}
+                    rows={6}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-gray-700">
+                      Tags
+                    </label>
+                    <span className={`text-xs ${editedCults3DFields.tags.length > 15 ? "font-semibold text-red-600" : "text-gray-400"}`}>
+                      {editedCults3DFields.tags.length} / 15
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {editedCults3DFields.tags.map((tag, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => removeCults3DTag(i)}
+                          className="ml-0.5 text-blue-600 hover:text-blue-900"
+                          aria-label={`Remove tag ${tag}`}
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {editedCults3DFields.tags.length < 15 && (
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={newCults3DTagInput}
+                        onChange={(e) => setNewCults3DTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addCults3DTag();
+                          }
+                        }}
+                        placeholder="Add a tag"
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={addCults3DTag}
+                        disabled={!newCults3DTagInput.trim()}
+                        className="rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Suggested Category */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">
+                    Suggested Category
+                  </label>
+                  <p className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+                    {editedCults3DFields.suggested_category || "—"}
+                  </p>
+                </div>
+
+                {/* Cults3D Listing Form (files, category, license, pricing) */}
+                <div className="border-t border-blue-200 pt-4">
+                  <Cults3DListingForm
+                    ref={cults3DFormRef}
+                    fields={editedCults3DFields}
+                    imageFile={imageFile}
+                    isCults3DConnected={isCults3DConnected}
+                    onSubmit={handleSubmitToCults3D}
+                    isSubmitting={isCults3DSubmitting}
+                    submitResult={cults3DSubmitResult}
+                  />
+                </div>
+              </div>
+            )}
+
+            {!showCults3DFields && (
+              <p className="text-xs text-gray-500">
+                {editedCults3DFields.name} — {editedCults3DFields.tags.length} tags — Category: {editedCults3DFields.suggested_category}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Create on Both Marketplaces */}
+        {generatedFields && isEtsyConnected && isCults3DConnected && (
+          <div className="rounded-lg border border-purple-200 bg-purple-50/30 p-4">
+            <h3 className="text-sm font-semibold text-purple-800">
+              Create on Both Marketplaces
+            </h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Submits to Etsy and Cults3D simultaneously. Make sure both forms are filled in above.
+            </p>
+            <button
+              onClick={handleCreateOnBoth}
+              disabled={isDualSubmitting || isSubmitting || isCults3DSubmitting}
+              className="mt-3 w-full rounded-lg bg-purple-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
+            >
+              {isDualSubmitting ? "Creating on both..." : "Create on Both Marketplaces"}
+            </button>
+
+            {dualSubmitResults && (
+              <div className="mt-3 space-y-2">
+                {dualSubmitResults.etsy && (
+                  <div className={`rounded-lg border p-2 ${dualSubmitResults.etsy.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
+                    <p className={`text-xs font-medium ${dualSubmitResults.etsy.success ? "text-green-700" : "text-red-700"}`}>
+                      Etsy: {dualSubmitResults.etsy.message}
+                    </p>
+                    {dualSubmitResults.etsy.url && (
+                      <a href={dualSubmitResults.etsy.url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:text-green-800">
+                        View on Etsy &rarr;
+                      </a>
+                    )}
+                  </div>
+                )}
+                {dualSubmitResults.cults3d && (
+                  <div className={`rounded-lg border p-2 ${dualSubmitResults.cults3d.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
+                    <p className={`text-xs font-medium ${dualSubmitResults.cults3d.success ? "text-green-700" : "text-red-700"}`}>
+                      Cults3D: {dualSubmitResults.cults3d.success ? "Design created!" : dualSubmitResults.cults3d.error}
+                    </p>
+                    {dualSubmitResults.cults3d.url && (
+                      <a href={dualSubmitResults.cults3d.url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:text-green-800">
+                        View on Cults3D &rarr;
                       </a>
                     )}
                   </div>

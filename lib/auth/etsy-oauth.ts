@@ -1,4 +1,4 @@
-import type { EtsyTokenResponse, EtsyShopResponse } from "@/lib/types/etsy";
+import type { EtsyTokenResponse, EtsyShop, EtsyShopResponse } from "@/lib/types/etsy";
 
 const ETSY_OAUTH_URL = "https://www.etsy.com/oauth/connect";
 const ETSY_TOKEN_URL = "https://api.etsy.com/v3/public/oauth/token";
@@ -8,6 +8,16 @@ function getApiKey(): string {
   const key = process.env.ETSY_API_KEY;
   if (!key) throw new Error("Missing ETSY_API_KEY environment variable");
   return key;
+}
+
+function getSharedSecret(): string {
+  const secret = process.env.ETSY_SHARED_SECRET;
+  if (!secret) throw new Error("Missing ETSY_SHARED_SECRET environment variable");
+  return secret;
+}
+
+function getFullApiKey(): string {
+  return `${getApiKey()}:${getSharedSecret()}`;
 }
 
 function getRedirectUri(): string {
@@ -90,7 +100,7 @@ export async function fetchUserShop(
   const url = `${ETSY_API_BASE}/users/${userId}/shops`;
   const response = await fetch(url, {
     headers: {
-      "x-api-key": getApiKey(),
+      "x-api-key": getFullApiKey(),
       Authorization: `Bearer ${accessToken}`,
     },
   });
@@ -100,11 +110,16 @@ export async function fetchUserShop(
     throw new Error(`Failed to fetch shop info (${response.status}): ${errorText}`);
   }
 
-  const data = (await response.json()) as EtsyShopResponse;
-  if (!data.results || data.results.length === 0) {
-    throw new Error("No shops found for this Etsy account");
+  const data = (await response.json()) as EtsyShop | EtsyShopResponse;
+
+  if ("shop_id" in data) {
+    return { shopId: data.shop_id, shopName: data.shop_name };
   }
 
-  const shop = data.results[0];
-  return { shopId: shop.shop_id, shopName: shop.shop_name };
+  if (data.results && data.results.length > 0) {
+    const shop = data.results[0];
+    return { shopId: shop.shop_id, shopName: shop.shop_name };
+  }
+
+  throw new Error("No shops found for this Etsy account.");
 }
